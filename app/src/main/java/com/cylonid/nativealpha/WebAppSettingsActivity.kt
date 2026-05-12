@@ -4,29 +4,47 @@ import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.TimePickerDialog
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Process
+import android.provider.OpenableColumns
 import android.text.Html
 import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.TimePicker
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import com.cylonid.nativealpha.activities.ToolbarBaseActivity
 import com.cylonid.nativealpha.databinding.WebappSettingsBinding
 import com.cylonid.nativealpha.model.DataManager
+import com.cylonid.nativealpha.model.UserScript
 import com.cylonid.nativealpha.model.WebApp
 import com.cylonid.nativealpha.util.Const
 import com.cylonid.nativealpha.util.DateUtils.convertStringToCalendar
 import com.cylonid.nativealpha.util.DateUtils.getHourMinFormat
 import com.cylonid.nativealpha.util.ProcessUtils.closeAllWebAppsAndProcesses
 import com.cylonid.nativealpha.util.Utility
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 import java.util.Calendar
 
 class WebAppSettingsActivity : ToolbarBaseActivity<WebappSettingsBinding>() {
     var webappID: Int = -1
     var webapp: WebApp? = null
     private var isGlobalWebApp: Boolean = false
+    private var pendingReplaceIndex: Int = -1
+
+    private val pickJsLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri == null) {
+            pendingReplaceIndex = -1
+            return@registerForActivityResult
+        }
+        handlePickedJsFile(uri)
+    }
 
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +66,7 @@ class WebAppSettingsActivity : ToolbarBaseActivity<WebappSettingsBinding>() {
             return
         }
         val modifiedWebapp = WebApp(webapp!!)
+        modifiedWebapp.migrateLegacyCustomJs()
         binding.webapp = modifiedWebapp
         binding.activity = this@WebAppSettingsActivity
 
@@ -57,7 +76,81 @@ class WebAppSettingsActivity : ToolbarBaseActivity<WebappSettingsBinding>() {
         setupDesktopUserAgentHint()
         setupShortcutButton()
         setupSwitchListeners(webapp!!)
+        setupCustomJsSection(modifiedWebapp)
+    }
 
+    private fun setupCustomJsSection(webapp: WebApp) {
+        binding.btnUploadJs.setOnClickListener {
+            pendingReplaceIndex = -1
+            launchJsPicker()
+        }
+        renderCustomJsList(webapp)
+    }
+
+    private fun launchJsPicker() {
+        try {
+            pickJsLauncher.launch(arrayOf("*/*"))
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.js_file_read_error, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handlePickedJsFile(uri: Uri) {
+        val name = queryDisplayName(uri) ?: "script.js"
+        val content = try {
+            contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.js_file_read_error, Toast.LENGTH_SHORT).show()
+            pendingReplaceIndex = -1
+            return
+        }
+        val mod = binding.webapp ?: return
+        if (pendingReplaceIndex in mod.customJsFiles.indices) {
+            val existing = mod.customJsFiles[pendingReplaceIndex]
+            existing.name = name
+            existing.content = content
+        } else {
+            mod.customJsFiles.add(UserScript(name, content, true))
+        }
+        pendingReplaceIndex = -1
+        renderCustomJsList(mod)
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) return c.getString(0)
+        }
+        return null
+    }
+
+    private fun renderCustomJsList(webapp: WebApp) {
+        val container = binding.customJsList
+        container.removeAllViews()
+        binding.customJsEmptyText.visibility = if (webapp.customJsFiles.isEmpty()) View.VISIBLE else View.GONE
+        val inflater = LayoutInflater.from(this)
+        webapp.customJsFiles.forEachIndexed { index, script ->
+            val row = inflater.inflate(R.layout.item_custom_js, container, false)
+            row.findViewById<TextView>(R.id.scriptName).text = script.name
+            val enabledSwitch = row.findViewById<MaterialSwitch>(R.id.scriptEnabled)
+            enabledSwitch.isChecked = script.enabled
+            enabledSwitch.setOnCheckedChangeListener { _, checked -> script.enabled = checked }
+            row.findViewById<MaterialButton>(R.id.scriptReplace).setOnClickListener {
+                pendingReplaceIndex = index
+                launchJsPicker()
+            }
+            row.findViewById<MaterialButton>(R.id.scriptDelete).setOnClickListener {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.delete_js_file_title)
+                    .setMessage(getString(R.string.delete_js_file_msg, script.name))
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        webapp.customJsFiles.removeAt(index)
+                        renderCustomJsList(webapp)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+            container.addView(row)
+        }
     }
 
     override fun inflateBinding(layoutInflater: LayoutInflater): WebappSettingsBinding {

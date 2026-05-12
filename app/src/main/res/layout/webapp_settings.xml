@@ -74,6 +74,54 @@
                         android:fontFamily="sans-serif"
                         android:inputType="text"
                         android:text="@={webapp.title}" />
+
+                    <LinearLayout
+                        android:id="@+id/sectionCustomJs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/settings_bottom"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/custom_javascript"
+                            android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="@string/custom_javascript_hint"
+                            android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+
+                        <LinearLayout
+                            android:id="@+id/customJsList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:divider="@drawable/empty_10dp_vertical"
+                            android:orientation="vertical"
+                            android:showDividers="middle" />
+
+                        <TextView
+                            android:id="@+id/customJsEmptyText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:padding="12dp"
+                            android:gravity="center"
+                            android:text="@string/custom_javascript_empty"
+                            android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                            android:textStyle="italic" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnUploadJs"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/upload_js_file" />
+                    </LinearLayout>
+
                 <LinearLayout
                     android:id="@+id/sectionSandbox"
                     android:layout_width="match_parent"
@@ -608,42 +656,6 @@
                                     android:hint="@string/insert_custom_user_agent"
                                     android:inputType="text"
                                     android:text="@={webapp.userAgent}"
-                                    tools:ignore="UnusedAttribute" />
-
-                            </LinearLayout>
-
-                            <LinearLayout
-                                android:id="@+id/sectionCustomJs"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginBottom="@dimen/remove_divider"
-                                    android:text="@string/custom_javascript"
-                                    android:textAppearance="@style/TextAppearance.AppCompat.Small"
-                                    android:textStyle="bold" />
-
-                                <TextView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/custom_javascript_hint"
-                                    android:textAppearance="@style/TextAppearance.AppCompat.Small" />
-
-                                <EditText
-                                    android:id="@+id/textCustomJs"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:fontFamily="monospace"
-                                    android:gravity="top|start"
-                                    android:hint="@string/custom_javascript_placeholder"
-                                    android:inputType="textMultiLine|textNoSuggestions"
-                                    android:minLines="6"
-                                    android:maxLines="20"
-                                    android:scrollbars="vertical"
-                                    android:text="@={webapp.customJs}"
                                     tools:ignore="UnusedAttribute" />
 
                             </LinearLayout>

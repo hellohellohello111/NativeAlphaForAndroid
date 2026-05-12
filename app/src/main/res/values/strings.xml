@@ -95,8 +95,13 @@
     <string name="use_custom_user_agent">Use custom user agent</string>
     <string name="insert_custom_user_agent">Insert custom user agent here…</string>
     <string name="custom_javascript">Custom JavaScript</string>
-    <string name="custom_javascript_hint">Runs after every page load if JavaScript is enabled for this app. Use IIFE-wrapped userscripts. Restart the web app after saving.</string>
-    <string name="custom_javascript_placeholder">(function () { /* paste your userscript here */ })();</string>
+    <string name="custom_javascript_hint">Upload .js files. Each enabled script runs after every page load (requires JavaScript enabled). Restart the web app after saving.</string>
+    <string name="custom_javascript_empty">No scripts uploaded yet.</string>
+    <string name="upload_js_file">+ Upload .js file</string>
+    <string name="replace_js_file">Replace script</string>
+    <string name="delete_js_file_title">Delete script?</string>
+    <string name="delete_js_file_msg">Remove %1$s from this web app?</string>
+    <string name="js_file_read_error">Couldn\'t read file</string>
     <string name="webapp_autoreload">Auto-reload page</string>
     <string name="webapp_interval_for_reload">Interval in seconds</string>
     <string name="webapp_autoreload_switch">Refresh page regularly</string>

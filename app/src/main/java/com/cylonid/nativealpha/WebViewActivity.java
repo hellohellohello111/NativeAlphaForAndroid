@@ -899,9 +899,13 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
             }
             wv.evaluateJavascript("document.addEventListener(\"visibilitychange\",function (event) {event.stopImmediatePropagation();},true);", null);
 
-            String customJs = webapp.getCustomJs();
-            if (webapp.isAllowJs() && customJs != null && !customJs.trim().isEmpty()) {
-                wv.evaluateJavascript(customJs, null);
+            if (webapp.isAllowJs()) {
+                webapp.migrateLegacyCustomJs();
+                for (com.cylonid.nativealpha.model.UserScript s : webapp.getCustomJsFiles()) {
+                    if (s.getEnabled() && !s.getContent().trim().isEmpty()) {
+                        wv.evaluateJavascript(s.getContent(), null);
+                    }
+                }
             }
             super.onPageFinished(view, url);
         }

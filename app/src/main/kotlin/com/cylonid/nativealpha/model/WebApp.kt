@@ -15,6 +15,12 @@ import java.util.*
 
 data class AdblockConfig(val label: String, val value: String)
 
+data class UserScript(
+    var name: String = "",
+    var content: String = "",
+    var enabled: Boolean = true,
+)
+
 data class WebApp(var baseUrl: String, val ID: Int) {
     var title: String
     var isActiveEntry = true
@@ -57,7 +63,19 @@ data class WebApp(var baseUrl: String, val ID: Int) {
     var order = 0
     var alwaysUseFallbackContextMenu = false
     var customJs: String = ""
+    var customJsFiles: MutableList<UserScript> = mutableListOf()
     var adBlockSettings = mutableListOf<AdblockConfig>()
+
+    /**
+     * One-time migration from the legacy single-string customJs field to the
+     * customJsFiles list. Idempotent — safe to call repeatedly.
+     */
+    fun migrateLegacyCustomJs() {
+        if (customJs.isNotBlank() && customJsFiles.isEmpty()) {
+            customJsFiles.add(UserScript(name = "legacy.js", content = customJs, enabled = true))
+            customJs = ""
+        }
+    }
 
     init {
         title = baseUrl.replace("http://", "").replace("https://", "").replace("www.", "")
@@ -120,6 +138,9 @@ data class WebApp(var baseUrl: String, val ID: Int) {
         order = other.order
         alwaysUseFallbackContextMenu = other.alwaysUseFallbackContextMenu
         customJs = other.customJs
+        customJsFiles = other.customJsFiles
+            .map { UserScript(it.name, it.content, it.enabled) }
+            .toMutableList()
         adBlockSettings = other.adBlockSettings
     }
 
