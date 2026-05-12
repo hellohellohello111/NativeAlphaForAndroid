@@ -16,3 +16,6 @@ app/release/**
 app/standard/**
 app/extended/**
 app/extendedGithub/**
+
+# signing config (contains keystore password)
+app/signing.properties

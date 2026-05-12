@@ -3,6 +3,12 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'com.mikepenz.aboutlibraries.plugin'
 
+def signingPropsFile = rootProject.file("app/signing.properties")
+def signingProps = new Properties()
+if (signingPropsFile.exists()) {
+    signingProps.load(new FileInputStream(signingPropsFile))
+}
+
 aboutLibraries {
     excludeFields = ["generated"]
 }
@@ -69,10 +75,25 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    signingConfigs {
+        nativeAlphaJs {
+            if (signingProps['KEYSTORE_FILE']) {
+                storeFile file(signingProps['KEYSTORE_FILE'])
+                storePassword signingProps['KEYSTORE_PASSWORD']
+                keyAlias signingProps['KEY_ALIAS']
+                keyPassword signingProps['KEY_PASSWORD']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            applicationIdSuffix = ".js"
+            resValue "string", "app_name", "Native Alpha JS"
+            if (signingProps['KEYSTORE_FILE']) {
+                signingConfig signingConfigs.nativeAlphaJs
+            }
         }
         debug {
           applicationIdSuffix = ".debug"
