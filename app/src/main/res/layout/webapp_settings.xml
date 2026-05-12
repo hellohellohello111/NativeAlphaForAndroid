@@ -613,6 +613,42 @@
                             </LinearLayout>
 
                             <LinearLayout
+                                android:id="@+id/sectionCustomJs"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginBottom="@dimen/remove_divider"
+                                    android:text="@string/custom_javascript"
+                                    android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/custom_javascript_hint"
+                                    android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+
+                                <EditText
+                                    android:id="@+id/textCustomJs"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="monospace"
+                                    android:gravity="top|start"
+                                    android:hint="@string/custom_javascript_placeholder"
+                                    android:inputType="textMultiLine|textNoSuggestions"
+                                    android:minLines="6"
+                                    android:maxLines="20"
+                                    android:scrollbars="vertical"
+                                    android:text="@={webapp.customJs}"
+                                    tools:ignore="UnusedAttribute" />
+
+                            </LinearLayout>
+
+                            <LinearLayout
                                 android:id="@+id/sectionSSL"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"

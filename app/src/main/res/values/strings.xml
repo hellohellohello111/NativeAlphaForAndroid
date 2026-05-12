@@ -94,6 +94,9 @@
     <string name="user_agent">User Agent</string>
     <string name="use_custom_user_agent">Use custom user agent</string>
     <string name="insert_custom_user_agent">Insert custom user agent here…</string>
+    <string name="custom_javascript">Custom JavaScript</string>
+    <string name="custom_javascript_hint">Runs after every page load if JavaScript is enabled for this app. Use IIFE-wrapped userscripts. Restart the web app after saving.</string>
+    <string name="custom_javascript_placeholder">(function () { /* paste your userscript here */ })();</string>
     <string name="webapp_autoreload">Auto-reload page</string>
     <string name="webapp_interval_for_reload">Interval in seconds</string>
     <string name="webapp_autoreload_switch">Refresh page regularly</string>

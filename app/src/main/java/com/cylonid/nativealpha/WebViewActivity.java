@@ -898,6 +898,11 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
                 wv.loadUrl("file:///android_asset/errorSite/error_" + langExtension + ".html");
             }
             wv.evaluateJavascript("document.addEventListener(\"visibilitychange\",function (event) {event.stopImmediatePropagation();},true);", null);
+
+            String customJs = webapp.getCustomJs();
+            if (webapp.isAllowJs() && customJs != null && !customJs.trim().isEmpty()) {
+                wv.evaluateJavascript(customJs, null);
+            }
             super.onPageFinished(view, url);
         }
 

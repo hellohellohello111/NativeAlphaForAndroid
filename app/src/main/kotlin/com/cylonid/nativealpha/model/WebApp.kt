@@ -56,6 +56,7 @@ data class WebApp(var baseUrl: String, val ID: Int) {
     var isAllowMediaPlaybackInBackground = false
     var order = 0
     var alwaysUseFallbackContextMenu = false
+    var customJs: String = ""
     var adBlockSettings = mutableListOf<AdblockConfig>()
 
     init {
@@ -118,6 +119,7 @@ data class WebApp(var baseUrl: String, val ID: Int) {
         isAllowMediaPlaybackInBackground = other.isAllowMediaPlaybackInBackground
         order = other.order
         alwaysUseFallbackContextMenu = other.alwaysUseFallbackContextMenu
+        customJs = other.customJs
         adBlockSettings = other.adBlockSettings
     }
 
