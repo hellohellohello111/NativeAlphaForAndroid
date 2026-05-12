@@ -913,6 +913,17 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             adFilter.performScript(view, url);
+            // Inject user scripts as early as possible to eliminate the flash of
+            // unstyled IG content before our CSS lands. Scripts guard themselves
+            // against double-execution via their own loaded-flag.
+            if (webapp.isAllowJs()) {
+                webapp.migrateLegacyCustomJs();
+                for (com.cylonid.nativealpha.model.UserScript s : webapp.getCustomJsFiles()) {
+                    if (s.getEnabled() && !s.getContent().trim().isEmpty()) {
+                        view.evaluateJavascript(s.getContent(), null);
+                    }
+                }
+            }
             super.onPageStarted(view, url, favicon);
         }
 
