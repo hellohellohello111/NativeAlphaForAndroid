@@ -51,7 +51,7 @@ public final class HtmlRewriter {
         return url.startsWith("http://") || url.startsWith("https://");
     }
 
-    public WebResourceResponse rewrite(WebResourceRequest request, BundledFilters filters) {
+    public WebResourceResponse rewrite(WebResourceRequest request, BundledFilters filters, String userAgent) {
         String url = request.getUrl().toString();
         HttpURLConnection conn = null;
         try {
@@ -70,12 +70,21 @@ public final class HtmlRewriter {
                     if (name == null) continue;
                     if (name.equalsIgnoreCase("Accept-Encoding")
                             || name.equalsIgnoreCase("Connection")
-                            || name.equalsIgnoreCase("Host")) continue;
+                            || name.equalsIgnoreCase("Host")
+                            || name.equalsIgnoreCase("User-Agent")) continue;
                     conn.setRequestProperty(name, h.getValue());
                 }
             }
             // We can handle gzip/deflate; advertise both
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate");
+
+            // Critical: force the WebView's User-Agent. Android does NOT include
+            // User-Agent in WebResourceRequest.getRequestHeaders() on most builds,
+            // so without this override HttpURLConnection sends "Java/<version>"
+            // and sites like Instagram return a bot-detection error page.
+            if (userAgent != null && !userAgent.isEmpty()) {
+                conn.setRequestProperty("User-Agent", userAgent);
+            }
 
             // Forward cookies the WebView has for this URL
             String cookies = CookieManager.getInstance().getCookie(url);

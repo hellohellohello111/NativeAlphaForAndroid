@@ -955,7 +955,8 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
             // 3. Main-frame HTML: re-fetch and inject our barrier + cosmetic CSS
             //    into <head> before WebView paints. Zero-FOUC path.
             if (htmlRewriter != null && htmlRewriter.shouldRewrite(request)) {
-                WebResourceResponse rewritten = htmlRewriter.rewrite(request, bundledFilters);
+                String ua = view.getSettings().getUserAgentString();
+                WebResourceResponse rewritten = htmlRewriter.rewrite(request, bundledFilters, ua);
                 if (rewritten != null) return rewritten;
             }
 
