@@ -37,6 +37,8 @@ class AdblockConfigActivity : ToolbarBaseActivity<AdblockConfigActivityBinding>(
             updateAdblockList()
         }
 
+        binding.btnAddPreset.setOnClickListener { showPresetPickerDialog() }
+
         setToolbarTitle(getString(R.string.adblock_config))
 
         adblockListFragment =
@@ -50,6 +52,47 @@ class AdblockConfigActivity : ToolbarBaseActivity<AdblockConfigActivityBinding>(
     private fun updateAdblockList() {
         adblockListFragment.updateAdblockList()
     }
+
+    private fun showPresetPickerDialog() {
+        val presets = Const.ADBLOCK_PRESETS
+        val labels = presets.map { it[0] }.toTypedArray()
+        val existing = DataManager.getInstance().settings.globalWebApp.adBlockSettings.map { it.value }.toSet()
+        val checked = BooleanArray(presets.size) { existing.contains(presets[it][1]) }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.select_preset_filter_lists))
+            .setMultiChoiceItemsCustom(labels, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val current = DataManager.getInstance().settings.globalWebApp.adBlockSettings.toMutableList()
+                presets.forEachIndexed { i, preset ->
+                    val (label, url) = preset[0] to preset[1]
+                    val alreadyThere = current.any { it.value == url }
+                    if (checked[i] && !alreadyThere) {
+                        current += AdblockConfig(label, url)
+                    } else if (!checked[i] && alreadyThere) {
+                        current.removeAll { it.value == url }
+                    }
+                }
+                DataManager.getInstance().apply {
+                    settings.globalWebApp.adBlockSettings = current
+                    saveGlobalSettings()
+                }
+                updateAdblockList()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    // Wrapper because Android's AlertDialog.Builder has overloaded setMultiChoiceItems
+    // that takes (CharSequence[], boolean[], OnMultiChoiceClickListener) — Kotlin
+    // selects fine without the rename, but using a named bridge keeps the call sites
+    // tidy if the signature is added to in the future.
+    private fun AlertDialog.Builder.setMultiChoiceItemsCustom(
+        items: Array<String>,
+        checkedItems: BooleanArray,
+        listener: DialogInterface.OnMultiChoiceClickListener
+    ): AlertDialog.Builder = setMultiChoiceItems(items, checkedItems, listener)
 
     private fun showAddAdblockDialog() {
         val localBinding = AddAdblockConfigDialogBinding.inflate(layoutInflater)

@@ -26,9 +26,20 @@ public class Const {
 
     public static ArrayList<AdblockConfig> getDefaultAdBlockConfig() {
         ArrayList<AdblockConfig> list = new ArrayList<>();
+        list.add(new AdblockConfig("EasyList", "https://easylist.to/easylist/easylist.txt"));
+        list.add(new AdblockConfig("EasyPrivacy", "https://easylist.to/easylist/easyprivacy.txt"));
         list.add(new AdblockConfig("Fanboy Ultimate List", "https://fanboy.co.nz/r/fanboy-ultimate.txt"));
         return list;
     }
+
+    public static final ArrayList<String[]> ADBLOCK_PRESETS = new ArrayList<String[]>() {{
+        add(new String[]{"EasyList", "https://easylist.to/easylist/easylist.txt"});
+        add(new String[]{"EasyPrivacy", "https://easylist.to/easylist/easyprivacy.txt"});
+        add(new String[]{"Fanboy Annoyances", "https://secure.fanboy.co.nz/fanboy-annoyance.txt"});
+        add(new String[]{"AdGuard Mobile Ads", "https://filters.adtidy.org/extension/ublock/filters/11.txt"});
+        add(new String[]{"AdGuard Tracking Protection", "https://filters.adtidy.org/extension/ublock/filters/3.txt"});
+        add(new String[]{"uBlock Filters - Annoyances", "https://ublockorigin.github.io/uAssetsCDN/filters/annoyances.txt"});
+    }};
 }
 
 

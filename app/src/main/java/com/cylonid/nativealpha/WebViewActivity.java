@@ -58,6 +58,8 @@ import com.cylonid.nativealpha.databinding.DialogHttpAuthBinding;
 import com.cylonid.nativealpha.helper.AdblockLifecycleHelper;
 import com.cylonid.nativealpha.helper.AdblockProviderApiHelper;
 import com.cylonid.nativealpha.helper.BiometricPromptHelper;
+import com.cylonid.nativealpha.helper.BundledFilters;
+import com.cylonid.nativealpha.helper.HtmlRewriter;
 import com.cylonid.nativealpha.helper.IconPopupMenuHelper;
 import com.cylonid.nativealpha.model.AdblockConfig;
 import com.cylonid.nativealpha.model.DataManager;
@@ -119,6 +121,9 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
     private AdblockProviderApiHelper adblockProviderApiHelper;
     private AdblockLifecycleHelper adblockLifecycleHelper;
 
+    private BundledFilters bundledFilters;
+    private HtmlRewriter htmlRewriter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -127,6 +132,8 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
         adblockLifecycleHelper.trySyncOperation(() -> adFilter = AdFilter.Companion.get(getApplicationContext()));
 
         adblockProviderApiHelper = new AdblockProviderApiHelper(adFilter);
+        bundledFilters = new BundledFilters(getApplicationContext());
+        htmlRewriter = new HtmlRewriter();
         webappID = getIntent().getIntExtra(Const.INTENT_WEBAPPID, -1);
         EntryPointUtils.entryPointReached(this);
         webapp = DataManager.getInstance().getWebApp(webappID);
@@ -932,9 +939,26 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             if(urlOnFirstPageload.equals("")) urlOnFirstPageload = request.getUrl().toString();
 
-            if(webapp.isUseAdblock()) {
-                return (adFilter.shouldIntercept(view, request)).getResourceResponse();
+            // 1. Bundled network rules (always-on, parsed from APK asset).
+            //    Cheap substring match — runs before the heavier AdblockAndroid pipeline.
+            if (bundledFilters != null && bundledFilters.shouldBlock(request)) {
+                return new WebResourceResponse("text/plain", "utf-8", null);
             }
+
+            // 2. User-configured filter list subscriptions (EasyList, EasyPrivacy, etc.).
+            //    Only fires when adblock is on for this app.
+            if (webapp.isUseAdblock()) {
+                WebResourceResponse blocked = adFilter.shouldIntercept(view, request).getResourceResponse();
+                if (blocked != null) return blocked;
+            }
+
+            // 3. Main-frame HTML: re-fetch and inject our barrier + cosmetic CSS
+            //    into <head> before WebView paints. Zero-FOUC path.
+            if (htmlRewriter != null && htmlRewriter.shouldRewrite(request)) {
+                WebResourceResponse rewritten = htmlRewriter.rewrite(request, bundledFilters);
+                if (rewritten != null) return rewritten;
+            }
+
             if (webapp.isBlockThirdPartyRequests()) {
                 Uri uri = request.getUrl();
                 Uri webapp_uri = Uri.parse(webapp.getBaseUrl());

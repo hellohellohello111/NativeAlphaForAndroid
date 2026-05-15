@@ -33,7 +33,7 @@ data class WebApp(var baseUrl: String, val ID: Int) {
     var isAllowJs = true
     var isRequestDesktop = false
     var isClearCache = false
-    var isUseAdblock = false
+    var isUseAdblock = true
     var isSendSavedataRequest = false
     var isBlockImages = false
     var isAllowHttp = false

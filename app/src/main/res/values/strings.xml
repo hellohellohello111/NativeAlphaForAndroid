@@ -102,6 +102,8 @@
     <string name="delete_js_file_title">Delete script?</string>
     <string name="delete_js_file_msg">Remove %1$s from this web app?</string>
     <string name="js_file_read_error">Couldn\'t read file</string>
+    <string name="add_preset_filter_lists">Add preset</string>
+    <string name="select_preset_filter_lists">Add filter list presets</string>
     <string name="webapp_autoreload">Auto-reload page</string>
     <string name="webapp_interval_for_reload">Interval in seconds</string>
     <string name="webapp_autoreload_switch">Refresh page regularly</string>

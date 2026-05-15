@@ -1,0 +1,132 @@
+! Title: Native Alpha Focus
+! Version: 1.0.0
+! Description: Bundled rules for Native Alpha JS — Google telemetry, IMDB/Amazon
+!              ad bidders, cross-site analytics. Cosmetic and network rules
+!              parsed by BundledFilters.java; cosmetic rules injected via
+!              HtmlRewriter into <head> before WebView paints (zero FOUC).
+! Syntax: subset of EasyList — supports || prefix, ^ anchor, * wildcard, domain##selector
+
+! ============================================================================
+! NETWORK RULES — blocked at WebViewClient.shouldInterceptRequest
+! ============================================================================
+
+! --- Google telemetry / ad infrastructure ---
+||gen_204
+||clients4.google.com/csi
+||clients4.google.com/generate_204
+||csi.gstatic.com^
+||play.googleapis.com/log/
+||play.googleapis.com/play/log
+||clientservices.googleapis.com^
+||update.googleapis.com^
+||clients2.google.com/cr/
+||clients3.google.com/csi
+||csi.l.google.com^
+||redirector.gvt1.com^
+||app-measurement.com^
+||firebaselogging.googleapis.com^
+||firebase-settings.crashlytics.com^
+||crashlyticsreports-pa.googleapis.com^
+||cct.google^
+||accounts.google.com/CheckCookie
+||google-analytics.com^
+||googletagmanager.com^
+||googletagservices.com^
+||googlesyndication.com^
+||doubleclick.net^
+||googleadservices.com^
+||pagead2.googlesyndication.com^
+
+! --- YouTube logging ---
+||youtube.com/api/stats/ads
+||youtube.com/api/stats/qoe
+||youtube.com/api/stats/playback
+||youtube.com/api/stats/watchtime
+||youtube.com/api/stats/atr
+||youtube.com/youtubei/v1/log_event
+||youtube.com/pagead/
+||youtube.com/ptracking
+
+! --- Facebook tracking ---
+||facebook.com/tr
+||graph.facebook.com/network_ads_common
+||connect.facebook.net^
+
+! --- Amazon / IMDB ad bidding ---
+||amazon-adsystem.com^
+||aps-na.amazon-adsystem.com^
+||aax-us-east.amazon-adsystem.com^
+||aax-us-iad.amazon-adsystem.com^
+||aax-eu.amazon-adsystem.com^
+||fls-na.amazon.com^
+||dtm.advertising.com^
+
+! --- IMDB-specific endpoints ---
+||imdb.com/_uitr/
+||imdb.com/_pingback/
+||imdb.com/imdb-ad-
+||imdb.com/imdb-csm
+||imdb.com/imdb-stats
+||imdb.com/_iframe-ads/
+||imdb.com/log?
+||imdb.com/video/ad/
+||imdb.com/tve/
+||widget.imdb.com/r/
+
+! --- Common third-party trackers ---
+||scorecardresearch.com^
+||quantserve.com^
+||quantcount.com^
+||hotjar.com^
+||mixpanel.com^
+||segment.io^
+||segment.com^
+||amplitude.com^
+||fullstory.com^
+||loggly.com^
+||sentry.io^
+||newrelic.com^
+||optimizely.com^
+||criteo.com^
+||criteo.net^
+||adnxs.com^
+||rubiconproject.com^
+||openx.net^
+||pubmatic.com^
+||taboola.com^
+||outbrain.com^
+
+! ============================================================================
+! COSMETIC RULES — injected into <head> by HtmlRewriter before WebView paints
+! Format: domain##selector
+! Generic (no domain): ##selector applies to all sites
+! ============================================================================
+
+! --- Generic ad/banner blockers ---
+##.adsbygoogle
+##div[id^="google_ads_iframe_"]
+##iframe[src*="googlesyndication.com"]
+##iframe[src*="doubleclick.net"]
+##div[id*="adslot"]
+##div[class*="ad-banner"]
+##div[class*="adsense"]
+
+! --- IMDB cosmetic ---
+imdb.com##div[class*="ipc-ad-display"]
+imdb.com##div[data-testid="ad-display"]
+imdb.com##.ipc-banner
+imdb.com##div[class*="show-more__ad"]
+imdb.com##aside[class*="ipc-page-section"]:has(div[data-testid*="ad"])
+imdb.com##div[class*="ad-leaderboard"]
+
+! --- Google Search cosmetic ---
+google.com##div[data-text-ad]
+google.com##.commercial-unit-desktop-top
+google.com##.commercial-unit-mobile-top
+
+! --- YouTube cosmetic (when reached directly) ---
+youtube.com##ytd-ad-slot-renderer
+youtube.com##ytd-promoted-video-renderer
+youtube.com##ytd-promoted-sparkles-web-renderer
+youtube.com##ytd-display-ad-renderer
+youtube.com##ytd-banner-promo-renderer
