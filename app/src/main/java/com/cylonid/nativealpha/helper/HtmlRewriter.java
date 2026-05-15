@@ -17,6 +17,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +44,7 @@ public final class HtmlRewriter {
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int READ_TIMEOUT_MS = 15000;
     private static final int MAX_BODY_BYTES = 4 * 1024 * 1024; // 4 MB cap
+    private static final int MAX_REDIRECTS = 5;
 
     public boolean shouldRewrite(WebResourceRequest request) {
         if (request == null || !request.isForMainFrame()) return false;
@@ -51,84 +53,59 @@ public final class HtmlRewriter {
         return url.startsWith("http://") || url.startsWith("https://");
     }
 
-    public WebResourceResponse rewrite(WebResourceRequest request, BundledFilters filters, String userAgent) {
+    public WebResourceResponse rewrite(WebResourceRequest request, BundledFilters filters,
+                                       String userAgent, List<String> userScripts) {
         String url = request.getUrl().toString();
         long t0 = System.currentTimeMillis();
         Log.i(TAG, "rewrite start: " + url);
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            conn.setReadTimeout(READ_TIMEOUT_MS);
-            conn.setInstanceFollowRedirects(true);
-
-            // Pass through request headers from the WebView
-            Map<String, String> headers = request.getRequestHeaders();
-            if (headers != null) {
-                for (Map.Entry<String, String> h : headers.entrySet()) {
-                    // Strip headers that conflict with our own handling
-                    String name = h.getKey();
-                    if (name == null) continue;
-                    if (name.equalsIgnoreCase("Accept-Encoding")
-                            || name.equalsIgnoreCase("Connection")
-                            || name.equalsIgnoreCase("Host")
-                            || name.equalsIgnoreCase("User-Agent")) continue;
-                    conn.setRequestProperty(name, h.getValue());
+            // Manual redirect handling so we can capture Set-Cookie at every
+            // hop. HttpURLConnection's auto-follow only exposes the final
+            // response's headers — intermediate auth/session cookies are lost.
+            String currentUrl = url;
+            int status = 0;
+            Map<String, List<String>> respHeaders = null;
+            String contentType = null;
+            for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+                if (conn != null) {
+                    try { conn.disconnect(); } catch (Throwable ignored) {}
                 }
-            }
-            // We can handle gzip/deflate; advertise both
-            conn.setRequestProperty("Accept-Encoding", "gzip, deflate");
+                conn = openConnection(currentUrl, request, userAgent);
+                conn.connect();
+                status = conn.getResponseCode();
 
-            // Critical: force the WebView's User-Agent. Android does NOT include
-            // User-Agent in WebResourceRequest.getRequestHeaders() on most builds,
-            // so without this override HttpURLConnection sends "Java/<version>"
-            // and sites like Instagram return a bot-detection error page.
-            if (userAgent != null && !userAgent.isEmpty()) {
-                conn.setRequestProperty("User-Agent", userAgent);
+                // Propagate Set-Cookie from THIS hop to CookieManager.
+                respHeaders = conn.getHeaderFields();
+                propagateSetCookies(respHeaders, currentUrl);
+
+                if (status < 300 || status >= 400) {
+                    contentType = conn.getContentType();
+                    break;
+                }
+                String location = conn.getHeaderField("Location");
+                if (location == null || location.isEmpty()) break;
+                // Resolve relative redirects against the current URL
+                URL resolved;
+                try {
+                    resolved = new URL(new URL(currentUrl), location);
+                } catch (Exception e) {
+                    break;
+                }
+                currentUrl = resolved.toString();
+                Log.i(TAG, "rewrite hop " + hop + ": " + status + " → " + currentUrl);
             }
 
-            // Forward cookies the WebView has for this URL
-            String cookies = CookieManager.getInstance().getCookie(url);
-            if (cookies != null && !cookies.isEmpty()) {
-                conn.setRequestProperty("Cookie", cookies);
-            }
-
-            conn.connect();
-            int status = conn.getResponseCode();
-            // Only rewrite successful HTML responses. Error pages, redirects
-            // that HttpURLConnection didn't follow, and 304s have weird
-            // headers/bodies that aren't worth touching.
+            // Only rewrite successful HTML responses. Error pages, unfollowed
+            // redirects, and 304s aren't worth touching.
             if (status < 200 || status >= 300) {
                 Log.i(TAG, "rewrite skip: non-2xx status=" + status + " " + url);
                 return null;
             }
-            String contentType = conn.getContentType();
             if (contentType == null || !contentType.toLowerCase(Locale.ROOT).contains("text/html")) {
                 Log.i(TAG, "rewrite skip: non-HTML content-type=" + contentType + " " + url);
-                return null; // Let WebView handle non-HTML
+                return null;
             }
-
-            // Propagate any Set-Cookie response headers back to the WebView.
-            // Each cookie wrapped individually — one malformed value should
-            // not nuke the whole response.
-            Map<String, List<String>> respHeaders = conn.getHeaderFields();
-            if (respHeaders != null) {
-                for (Map.Entry<String, List<String>> e : respHeaders.entrySet()) {
-                    if (e.getKey() != null && e.getKey().equalsIgnoreCase("Set-Cookie")) {
-                        for (String c : e.getValue()) {
-                            try {
-                                CookieManager.getInstance().setCookie(url, c);
-                            } catch (Throwable ignored) {}
-                        }
-                    }
-                }
-            }
-
-            // Strip Content-Security-Policy so our injected <script> and <style>
-            // aren't blocked. CSP can otherwise leave the visibility-hidden
-            // barrier in place forever (the reveal script gets CSP-blocked).
-            // Also strip CSP <meta> tags in the body parse pass below.
 
             byte[] body = readBody(conn);
             if (body == null) return null;
@@ -161,15 +138,40 @@ public final class HtmlRewriter {
             Element script = doc.createElement("script").appendChild(new org.jsoup.nodes.DataNode(
                     "(function(){"
                             + "window.__nativeAlphaReveal=function(){"
-                            + "var b=document.getElementById('" + STYLE_ID + "');if(b)b.remove();};"
+                            + "var b=document.getElementById('" + STYLE_ID + "');if(b)b.remove();"
+                            + "try{document.documentElement.style.setProperty('visibility','visible','important');}catch(e){}};"
                             + "setTimeout(window.__nativeAlphaReveal,3000);"
                             + "})();"));
             head.prependChild(script);
 
+            // Inject user scripts inline. evaluateJavascript at onPageStarted
+            // gets queued behind the page's own JS execution and can be
+            // delayed 3-5s on heavy SPAs like Instagram — by then the user
+            // has already interacted with the page. Inline <script> in <head>
+            // runs synchronously during HTML parsing, before any of the page's
+            // own bundle. The userscripts have a __igFocusLoaded guard, so
+            // duplicate execution (also via evaluateJavascript) is a no-op.
+            if (userScripts != null) {
+                for (String src : userScripts) {
+                    if (src == null || src.isEmpty()) continue;
+                    // Prevent premature termination of <script> via </script>
+                    // appearing inside the JS body (string literals, regex, etc.).
+                    String safe = src.replace("</script", "<\\/script")
+                            .replace("</SCRIPT", "<\\/SCRIPT");
+                    Element s = doc.createElement("script").appendChild(new org.jsoup.nodes.DataNode(safe));
+                    head.appendChild(s);
+                }
+            }
+
             byte[] modified = doc.outerHtml().getBytes(StandardCharsets.UTF_8);
 
-            // Build a minimal response-header map (avoid hop-by-hop entries
-            // and CSP which would block our injected script/style).
+            // Build a minimal response-header map. Strip:
+            // - Hop-by-hop headers (Content-Length, Content-Encoding, etc.)
+            //   because we changed the body.
+            // - CSP because our injected script/style must run.
+            // - Content-Type because we re-encoded as UTF-8 and declare it
+            //   explicitly in the constructor — leaving the original
+            //   header risks a charset mismatch.
             Map<String, String> outHeaders = new HashMap<>();
             if (respHeaders != null) {
                 for (Map.Entry<String, List<String>> e : respHeaders.entrySet()) {
@@ -179,6 +181,7 @@ public final class HtmlRewriter {
                             || key.equalsIgnoreCase("Content-Encoding")
                             || key.equalsIgnoreCase("Transfer-Encoding")
                             || key.equalsIgnoreCase("Connection")
+                            || key.equalsIgnoreCase("Content-Type")
                             || key.equalsIgnoreCase("Content-Security-Policy")
                             || key.equalsIgnoreCase("Content-Security-Policy-Report-Only")) continue;
                     if (e.getValue() != null && !e.getValue().isEmpty()) {
@@ -214,6 +217,50 @@ public final class HtmlRewriter {
         } finally {
             if (conn != null) {
                 try { conn.disconnect(); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private HttpURLConnection openConnection(String url, WebResourceRequest request, String userAgent) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod("GET");
+        conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        conn.setReadTimeout(READ_TIMEOUT_MS);
+        conn.setInstanceFollowRedirects(false);
+
+        Map<String, String> headers = request.getRequestHeaders();
+        if (headers != null) {
+            for (Map.Entry<String, String> h : headers.entrySet()) {
+                String name = h.getKey();
+                if (name == null) continue;
+                if (name.equalsIgnoreCase("Accept-Encoding")
+                        || name.equalsIgnoreCase("Connection")
+                        || name.equalsIgnoreCase("Host")
+                        || name.equalsIgnoreCase("User-Agent")
+                        || name.equalsIgnoreCase("Cookie")) continue;
+                conn.setRequestProperty(name, h.getValue());
+            }
+        }
+        conn.setRequestProperty("Accept-Encoding", "gzip, deflate");
+        if (userAgent != null && !userAgent.isEmpty()) {
+            conn.setRequestProperty("User-Agent", userAgent);
+        }
+        // Cookies for THIS hop's URL (host may differ from initial URL after redirect)
+        String cookies = CookieManager.getInstance().getCookie(url);
+        if (cookies != null && !cookies.isEmpty()) {
+            conn.setRequestProperty("Cookie", cookies);
+        }
+        return conn;
+    }
+
+    private void propagateSetCookies(Map<String, List<String>> respHeaders, String url) {
+        if (respHeaders == null) return;
+        for (Map.Entry<String, List<String>> e : respHeaders.entrySet()) {
+            if (e.getKey() == null || !e.getKey().equalsIgnoreCase("Set-Cookie")) continue;
+            for (String c : e.getValue()) {
+                try {
+                    CookieManager.getInstance().setCookie(url, c);
+                } catch (Throwable ignored) {}
             }
         }
     }

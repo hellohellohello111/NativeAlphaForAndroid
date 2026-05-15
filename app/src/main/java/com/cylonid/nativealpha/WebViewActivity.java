@@ -955,11 +955,24 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
                     if (blocked != null) return blocked;
                 }
 
-                // 3. Main-frame HTML: re-fetch and inject our barrier + cosmetic CSS
-                //    into <head> before WebView paints. Zero-FOUC path.
-                if (htmlRewriter != null && htmlRewriter.shouldRewrite(request)) {
+                // 3. Main-frame HTML: re-fetch and inject our barrier +
+                //    cosmetic CSS + user scripts into <head> before WebView
+                //    paints. Inline-injecting the userscripts (rather than
+                //    only via evaluateJavascript) avoids the 3-5s queueing
+                //    delay on busy SPA pages.
+                HtmlRewriter rewriter = htmlRewriter;  // local snapshot
+                if (rewriter != null && rewriter.shouldRewrite(request)) {
                     String ua = view.getSettings().getUserAgentString();
-                    WebResourceResponse rewritten = htmlRewriter.rewrite(request, bundledFilters, ua);
+                    java.util.List<String> scriptsToInject = new java.util.ArrayList<>();
+                    if (webapp.isAllowJs()) {
+                        webapp.migrateLegacyCustomJs();
+                        for (com.cylonid.nativealpha.model.UserScript s : webapp.getCustomJsFiles()) {
+                            if (s.getEnabled() && !s.getContent().trim().isEmpty()) {
+                                scriptsToInject.add(s.getContent());
+                            }
+                        }
+                    }
+                    WebResourceResponse rewritten = rewriter.rewrite(request, bundledFilters, ua, scriptsToInject);
                     if (rewritten != null) return rewritten;
                 }
             } catch (Throwable t) {
