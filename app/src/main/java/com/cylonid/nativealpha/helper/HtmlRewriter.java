@@ -53,6 +53,8 @@ public final class HtmlRewriter {
 
     public WebResourceResponse rewrite(WebResourceRequest request, BundledFilters filters, String userAgent) {
         String url = request.getUrl().toString();
+        long t0 = System.currentTimeMillis();
+        Log.i(TAG, "rewrite start: " + url);
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(url).openConnection();
@@ -98,10 +100,12 @@ public final class HtmlRewriter {
             // that HttpURLConnection didn't follow, and 304s have weird
             // headers/bodies that aren't worth touching.
             if (status < 200 || status >= 300) {
+                Log.i(TAG, "rewrite skip: non-2xx status=" + status + " " + url);
                 return null;
             }
             String contentType = conn.getContentType();
             if (contentType == null || !contentType.toLowerCase(Locale.ROOT).contains("text/html")) {
+                Log.i(TAG, "rewrite skip: non-HTML content-type=" + contentType + " " + url);
                 return null; // Let WebView handle non-HTML
             }
 
@@ -186,6 +190,8 @@ public final class HtmlRewriter {
             String reason = conn.getResponseMessage();
             if (reason == null || reason.isEmpty()) reason = "OK";
 
+            Log.i(TAG, "rewrite ok: " + url + " (" + (System.currentTimeMillis() - t0) + "ms, "
+                    + modified.length + " bytes)");
             return new WebResourceResponse(
                     "text/html",
                     "UTF-8",
