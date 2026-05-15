@@ -102,6 +102,11 @@ public final class HtmlRewriter {
                 }
             }
 
+            // Strip Content-Security-Policy so our injected <script> and <style>
+            // aren't blocked. CSP can otherwise leave the visibility-hidden
+            // barrier in place forever (the reveal script gets CSP-blocked).
+            // Also strip CSP <meta> tags in the body parse pass below.
+
             byte[] body = readBody(conn);
             if (body == null) return null;
 
@@ -109,8 +114,18 @@ public final class HtmlRewriter {
             String html = new String(body, Charset.forName(charset));
 
             Document doc = Jsoup.parse(html, url);
+            doc.outputSettings().prettyPrint(false);
             Element head = doc.head();
             if (head == null) return null;
+
+            // Strip CSP meta tags so inline script + style work.
+            doc.select("meta[http-equiv]").forEach(m -> {
+                String v = m.attr("http-equiv");
+                if (v != null && (v.equalsIgnoreCase("Content-Security-Policy")
+                        || v.equalsIgnoreCase("Content-Security-Policy-Report-Only"))) {
+                    m.remove();
+                }
+            });
 
             String host = request.getUrl().getHost();
             String cosmeticCss = filters != null ? filters.cssForHost(host) : "";
@@ -130,7 +145,8 @@ public final class HtmlRewriter {
 
             byte[] modified = doc.outerHtml().getBytes(StandardCharsets.UTF_8);
 
-            // Build a minimal response-header map (avoid hop-by-hop entries)
+            // Build a minimal response-header map (avoid hop-by-hop entries
+            // and CSP which would block our injected script/style).
             Map<String, String> outHeaders = new HashMap<>();
             if (respHeaders != null) {
                 for (Map.Entry<String, List<String>> e : respHeaders.entrySet()) {
@@ -139,7 +155,9 @@ public final class HtmlRewriter {
                     if (key.equalsIgnoreCase("Content-Length")
                             || key.equalsIgnoreCase("Content-Encoding")
                             || key.equalsIgnoreCase("Transfer-Encoding")
-                            || key.equalsIgnoreCase("Connection")) continue;
+                            || key.equalsIgnoreCase("Connection")
+                            || key.equalsIgnoreCase("Content-Security-Policy")
+                            || key.equalsIgnoreCase("Content-Security-Policy-Report-Only")) continue;
                     if (e.getValue() != null && !e.getValue().isEmpty()) {
                         outHeaders.put(key, e.getValue().get(0));
                     }
