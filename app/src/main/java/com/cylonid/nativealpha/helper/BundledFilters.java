@@ -94,18 +94,23 @@ public final class BundledFilters {
     /** True if the request URL matches any network rule. */
     public boolean shouldBlock(WebResourceRequest request) {
         if (request == null) return false;
-        String url = request.getUrl().toString().toLowerCase(Locale.ROOT);
-        String host = request.getUrl().getHost();
-        if (host != null) {
-            host = host.toLowerCase(Locale.ROOT);
-            for (String h : networkHostAnchored) {
-                if (host.equals(h) || host.endsWith("." + h)) return true;
+        try {
+            String url = request.getUrl().toString().toLowerCase(Locale.ROOT);
+            String host = request.getUrl().getHost();
+            if (host != null) {
+                host = host.toLowerCase(Locale.ROOT);
+                for (String h : networkHostAnchored) {
+                    if (host.equals(h) || host.endsWith("." + h)) return true;
+                }
             }
+            for (String s : networkSubstrings) {
+                if (url.contains(s)) return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            Log.w(TAG, "shouldBlock error", t);
+            return false;
         }
-        for (String s : networkSubstrings) {
-            if (url.contains(s)) return true;
-        }
-        return false;
     }
 
     /** Joined CSS for cosmetic rules that apply to this host (with global rules merged in). */

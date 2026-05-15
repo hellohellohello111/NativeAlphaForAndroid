@@ -939,25 +939,32 @@ public class WebViewActivity extends AppCompatActivity implements EasyPermission
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             if(urlOnFirstPageload.equals("")) urlOnFirstPageload = request.getUrl().toString();
 
-            // 1. Bundled network rules (always-on, parsed from APK asset).
-            //    Cheap substring match — runs before the heavier AdblockAndroid pipeline.
-            if (bundledFilters != null && bundledFilters.shouldBlock(request)) {
-                return new WebResourceResponse("text/plain", "utf-8", null);
-            }
+            // Outer safety net — anything that escapes shouldInterceptRequest
+            // is caught by WebView and crashes the sandbox process. Catch all.
+            try {
+                // 1. Bundled network rules (always-on, parsed from APK asset).
+                //    Cheap substring match — runs before the heavier AdblockAndroid pipeline.
+                if (bundledFilters != null && bundledFilters.shouldBlock(request)) {
+                    return new WebResourceResponse("text/plain", "utf-8", null);
+                }
 
-            // 2. User-configured filter list subscriptions (EasyList, EasyPrivacy, etc.).
-            //    Only fires when adblock is on for this app.
-            if (webapp.isUseAdblock()) {
-                WebResourceResponse blocked = adFilter.shouldIntercept(view, request).getResourceResponse();
-                if (blocked != null) return blocked;
-            }
+                // 2. User-configured filter list subscriptions (EasyList, EasyPrivacy, etc.).
+                //    Only fires when adblock is on for this app.
+                if (webapp.isUseAdblock()) {
+                    WebResourceResponse blocked = adFilter.shouldIntercept(view, request).getResourceResponse();
+                    if (blocked != null) return blocked;
+                }
 
-            // 3. Main-frame HTML: re-fetch and inject our barrier + cosmetic CSS
-            //    into <head> before WebView paints. Zero-FOUC path.
-            if (htmlRewriter != null && htmlRewriter.shouldRewrite(request)) {
-                String ua = view.getSettings().getUserAgentString();
-                WebResourceResponse rewritten = htmlRewriter.rewrite(request, bundledFilters, ua);
-                if (rewritten != null) return rewritten;
+                // 3. Main-frame HTML: re-fetch and inject our barrier + cosmetic CSS
+                //    into <head> before WebView paints. Zero-FOUC path.
+                if (htmlRewriter != null && htmlRewriter.shouldRewrite(request)) {
+                    String ua = view.getSettings().getUserAgentString();
+                    WebResourceResponse rewritten = htmlRewriter.rewrite(request, bundledFilters, ua);
+                    if (rewritten != null) return rewritten;
+                }
+            } catch (Throwable t) {
+                Log.w("WebViewActivity", "shouldInterceptRequest error, falling back", t);
+                // fall through to default handling
             }
 
             if (webapp.isBlockThirdPartyRequests()) {

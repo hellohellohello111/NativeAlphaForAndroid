@@ -42,7 +42,7 @@ public final class HtmlRewriter {
     private static final String STYLE_ID = "native-alpha-prerender";
     private static final int CONNECT_TIMEOUT_MS = 8000;
     private static final int READ_TIMEOUT_MS = 15000;
-    private static final int MAX_BODY_BYTES = 8 * 1024 * 1024; // 8 MB cap
+    private static final int MAX_BODY_BYTES = 4 * 1024 * 1024; // 4 MB cap
 
     public boolean shouldRewrite(WebResourceRequest request) {
         if (request == null || !request.isForMainFrame()) return false;
@@ -94,18 +94,28 @@ public final class HtmlRewriter {
 
             conn.connect();
             int status = conn.getResponseCode();
+            // Only rewrite successful HTML responses. Error pages, redirects
+            // that HttpURLConnection didn't follow, and 304s have weird
+            // headers/bodies that aren't worth touching.
+            if (status < 200 || status >= 300) {
+                return null;
+            }
             String contentType = conn.getContentType();
             if (contentType == null || !contentType.toLowerCase(Locale.ROOT).contains("text/html")) {
                 return null; // Let WebView handle non-HTML
             }
 
-            // Propagate any Set-Cookie response headers back to the WebView
+            // Propagate any Set-Cookie response headers back to the WebView.
+            // Each cookie wrapped individually — one malformed value should
+            // not nuke the whole response.
             Map<String, List<String>> respHeaders = conn.getHeaderFields();
             if (respHeaders != null) {
                 for (Map.Entry<String, List<String>> e : respHeaders.entrySet()) {
                     if (e.getKey() != null && e.getKey().equalsIgnoreCase("Set-Cookie")) {
                         for (String c : e.getValue()) {
-                            CookieManager.getInstance().setCookie(url, c);
+                            try {
+                                CookieManager.getInstance().setCookie(url, c);
+                            } catch (Throwable ignored) {}
                         }
                     }
                 }
@@ -185,13 +195,20 @@ public final class HtmlRewriter {
                     new ByteArrayInputStream(modified)
             );
         } catch (IOException e) {
-            Log.w(TAG, "rewrite failed for " + url + ": " + e.getMessage());
+            Log.w(TAG, "rewrite IO failed for " + url + ": " + e.getMessage());
             return null;
-        } catch (Exception e) {
-            Log.w(TAG, "unexpected error rewriting " + url, e);
+        } catch (OutOfMemoryError e) {
+            Log.w(TAG, "rewrite OOM for " + url);
+            return null;
+        } catch (Throwable t) {
+            // Last-resort safety net — anything that escapes here would
+            // propagate to the WebView callback and crash the sandbox process.
+            Log.w(TAG, "unexpected error rewriting " + url, t);
             return null;
         } finally {
-            if (conn != null) conn.disconnect();
+            if (conn != null) {
+                try { conn.disconnect(); } catch (Throwable ignored) {}
+            }
         }
     }
 
